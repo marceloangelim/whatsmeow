@@ -124,6 +124,7 @@ const (
 	mutationCreateNewsletter       = "6234210096708695"
 	mutationUnfollowNewsletter     = "6392786840836363"
 	mutationFollowNewsletter       = "9926858900719341"
+	mutationDeleteNewsletter       = "30062808666639665" // variables -> {newsletter_id}, output: xwa2_newsletter_delete_v2
 
 	// desktop & mobile
 	queryFetchNewsletterDesktop        = "9779843322044422"
@@ -362,6 +363,14 @@ func (cli *Client) NewsletterToggleMute(ctx context.Context, jid types.JID, mute
 // FollowNewsletter makes the user follow (join) a WhatsApp channel.
 func (cli *Client) FollowNewsletter(ctx context.Context, jid types.JID) error {
 	_, err := cli.sendMexIQ(ctx, mutationFollowNewsletter, map[string]any{
+		"newsletter_id": jid.String(),
+	})
+	return err
+}
+
+// DeleteNewsletter deletes a WhatsApp channel owned by the user.
+func (cli *Client) DeleteNewsletter(ctx context.Context, jid types.JID) error {
+	_, err := cli.sendMexIQ(ctx, mutationDeleteNewsletter, map[string]any{
 		"newsletter_id": jid.String(),
 	})
 	return err
