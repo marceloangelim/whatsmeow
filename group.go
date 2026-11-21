@@ -49,6 +49,8 @@ type ReqCreateGroup struct {
 	types.GroupParent
 	// Set LinkedParentJID to create a group inside a community.
 	types.GroupLinkedParent
+	// CommunityDescription is an optional description for a new community (IsParent).
+	CommunityDescription string
 }
 
 // CreateGroup creates a group on WhatsApp with the given name and participants.
@@ -139,6 +141,12 @@ func (cli *Client) CreateGroup(ctx context.Context, req ReqCreateGroup) (*types.
 	createAttrs := waBinary.Attrs{}
 	if req.Name != "" {
 		createAttrs["subject"] = req.Name
+	}
+	if req.IsParent {
+		// The server rejects community creation (400 bad-request) when the
+		// create node carries the regular group children above
+		// (member_add_mode, ephemeral, membership_approval_mode, participants).
+		participantNodes = communityCreateNodes(req)
 	}
 	resp, err := cli.sendGroupIQ(ctx, iqSet, types.GroupServerJID, waBinary.Node{
 		Tag:     "create",
@@ -1122,4 +1130,29 @@ func (cli *Client) SetGroupMemberAddMode(ctx context.Context, jid types.JID, mod
 // Deprecated: duplicate of SetGroupTopic
 func (cli *Client) SetGroupDescription(ctx context.Context, jid types.JID, description string) error {
 	return cli.SetGroupTopic(ctx, jid, "", "", description)
+}
+
+// communityCreateNodes builds the children of the create node for a new
+// community, matching what WhatsApp Web sends: an optional description, the
+// parent marker, sub-group creation by members and the general chat.
+// Participants can't be included; add them to the community's announcement
+// group after creation.
+func communityCreateNodes(req ReqCreateGroup) []waBinary.Node {
+	mode := req.DefaultMembershipApprovalMode
+	if mode == "" {
+		mode = "request_required"
+	}
+	nodes := make([]waBinary.Node, 0, 4)
+	if req.CommunityDescription != "" {
+		nodes = append(nodes, waBinary.Node{
+			Tag:     "description",
+			Attrs:   waBinary.Attrs{"id": string(GenerateMessageID())[:12]},
+			Content: []waBinary.Node{{Tag: "body", Content: []byte(req.CommunityDescription)}},
+		})
+	}
+	return append(nodes,
+		waBinary.Node{Tag: "parent", Attrs: waBinary.Attrs{"default_membership_approval_mode": mode}},
+		waBinary.Node{Tag: "allow_non_admin_sub_group_creation"},
+		waBinary.Node{Tag: "create_general_chat"},
+	)
 }
